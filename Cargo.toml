@@ -9,3 +9,5 @@ repository = "https://github.com/franklee26/rust-servo"
 
 [dependencies]
 num-traits = "0.2.15"
+rand = "0.8.5"
+rand_distr = "0.4.3"

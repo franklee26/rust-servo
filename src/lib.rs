@@ -1,47 +1,47 @@
-use engine::Engine;
+use engine::{Engine, Measurement};
 use pid::pid_controller::PidController;
+use std::{fs::File, time::Instant};
+
+use rand_distr::Distribution;
+use rand_distr::Normal;
+use std::io::Write;
 
 pub mod engine;
 pub mod pid;
 pub mod servo;
 
-// Dummy interface controller that measures an external process variable.
-struct InterfaceController {
-    out_amp: f64,
-}
-impl InterfaceController {
-    fn new() -> Self {
-        Self { out_amp: 0.0 }
-    }
-    fn read(&self) -> f64 {
-        0.0
-    }
-
-    fn set(&mut self, amp: f64) {
-        self.out_amp = amp;
-    }
-}
 // Example invocation of a PID controller
 #[allow(dead_code)]
-fn main() {
-    let goal_set_point = 100.0;
-    let pid_controller = PidController::new(goal_set_point);
+fn main() -> Result<(), std::io::Error> {
 
-    // Prepare reader
-    let mut controller = InterfaceController::new();
-    // Spin up a servo engine to do our heavy lifting
-    let mut engine = Engine::new(pid_controller);
-    loop {
-        // Read in the current process value
-        let val = controller.read();
+    // Capture data to data.txt
+    let mut file = File::create("data.txt")?;
+    let mut controller = PidController::new(200.0);
 
-        // Calculate the control output based on the current process value
-        let control_output = engine.next(val);
+    controller.set_derivative_term(0.19);
+    controller.set_integral_term(0.1);
+    controller.set_proportional_term(0.1);
 
-        // Adjust the controller
-        controller.set(val + control_output.value);
+    let mut engine = Engine::new(controller);
+    let mut measurement = Measurement::new();
 
-        // Wait one second before re-reading
-        std::thread::sleep(std::time::Duration::from_secs(1));
+    // Mock a first measurement
+    measurement.set_value(50.0, Instant::now());
+
+    for i in 0..900 {
+        std::thread::sleep(std::time::Duration::from_millis(250));
+        let output = engine.next(&measurement);
+        match output {
+            Ok(control_val) => {
+                let val = control_val.value;
+                let mut rng = rand::thread_rng();
+                let normal = Normal::new(10.0, 5.0).unwrap();
+                let noise = normal.sample(&mut rng);
+                measurement.set_value(measurement.value + val + noise, Instant::now());
+                write!(file, "{}\t{}\n", i, measurement.value)?;
+            }
+            Err(err) => eprintln!("{err}"),
+        }
     }
+    Ok(())
 }

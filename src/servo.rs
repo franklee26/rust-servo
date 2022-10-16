@@ -1,28 +1,35 @@
-use std::fmt::Display;
-
-use num_traits::Num;
+use std::{fmt::Display, time::Duration};
 
 pub struct ControlValue {
     pub value: f64,
 }
 
-pub struct ServoInput<T: Num> {
-    pub process_value: T,
-    pub delta_t: Option<u64>,
+pub struct ServoInput {
+    pub process_value: f64,
+    pub delta_t: Option<Duration>,
 }
 
 #[derive(Debug)]
-pub struct ReadInputError {}
+pub struct ReadInputError {
+    message: String,
+}
+
+impl ReadInputError {
+    pub fn new(message: &str) -> Self {
+        Self {
+            message: message.to_string(),
+        }
+    }
+}
 
 impl std::fmt::Display for ReadInputError {
-    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        todo!()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.message)
     }
 }
 
 impl std::error::Error for ReadInputError {}
 
 pub trait Servo: Display {
-    fn read<T: Num>(&mut self, servo_input: &ServoInput<T>)
-        -> Result<ControlValue, ReadInputError>;
+    fn read(&mut self, servo_input: &ServoInput) -> Result<ControlValue, ReadInputError>;
 }
