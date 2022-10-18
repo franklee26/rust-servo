@@ -13,7 +13,6 @@ pub mod servo;
 // Example invocation of a PID controller
 #[allow(dead_code)]
 fn main() -> Result<(), std::io::Error> {
-
     // Capture data to data.txt
     let mut file = File::create("data.txt")?;
     let mut controller = PidController::new(200.0);

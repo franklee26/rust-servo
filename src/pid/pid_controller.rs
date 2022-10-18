@@ -27,16 +27,26 @@ impl PidController {
         }
     }
 
+    #[inline]
     pub fn set_proportional_term(&mut self, proportional: f64) {
         self.proportional = proportional;
     }
 
+    #[inline]
     pub fn set_integral_term(&mut self, integral: f64) {
         self.integral = integral;
     }
 
+    #[inline]
     pub fn set_derivative_term(&mut self, derivative: f64) {
         self.derivative = derivative;
+    }
+
+    #[inline]
+    fn backup_error_and_control_values(&mut self, value: f64, err_tk: f64) {
+        self.last_control_value = Some(value);
+        self.last_last_error_term = self.last_error_term;
+        self.last_error_term = Some(err_tk);
     }
 }
 
@@ -52,9 +62,7 @@ impl Servo for PidController {
             let value = self.proportional * err_tk;
             let control_value = ControlValue { value };
 
-            self.last_control_value = Some(value);
-            self.last_last_error_term = self.last_error_term;
-            self.last_error_term = Some(err_tk);
+            self.backup_error_and_control_values(value, err_tk);
             return Ok(control_value);
         }
         let delta_t = servo_input.delta_t.unwrap().as_secs_f64();
@@ -75,9 +83,7 @@ impl Servo for PidController {
             + err_tk_2 * (self.derivative / delta_t);
 
         // Store error and output value terms for the next calculation
-        self.last_control_value = Some(value);
-        self.last_last_error_term = self.last_error_term;
-        self.last_error_term = Some(err_tk);
+        self.backup_error_and_control_values(value, err_tk);
 
         let control_value = ControlValue { value };
 
@@ -88,5 +94,66 @@ impl Servo for PidController {
 impl Display for PidController {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", std::any::type_name::<Self>())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use crate::servo::Servo;
+    use crate::servo::ServoInput;
+
+    use super::PidController;
+
+    macro_rules! assert_control_value_result_eq {
+        ($result: expr, $expected: expr) => {
+            match $result {
+                Ok(value) => assert_eq!(value.value, $expected),
+                Err(_) => assert!(false)
+            }
+        }
+    }
+
+    // Borrowed from braincore/pid-rs example: https://github.com/braincore/pid-rs#example
+    #[test]
+    fn pid_controller_accepts_valid_inputs_as_expected() {
+        let one_sec = Duration::from_secs(1);
+        let mut test_servo_input = ServoInput {
+            process_value: 10.0,
+            delta_t: Some(one_sec),
+        };
+        let mut pid_controller = PidController::new(15.0);
+
+        pid_controller.set_proportional_term(10.0);
+        let mut output = pid_controller.read(&test_servo_input);
+        // Test that output is solely weighted by prop term where output = k_p * err = 10.0 * (15.0 - 10.0) = 50.0
+        assert_control_value_result_eq!(output, 50.0);
+
+        // Introduce integral term
+        pid_controller.set_integral_term(1.0);
+        output = pid_controller.read(&test_servo_input);
+        assert_control_value_result_eq!(output, 55.0);
+
+        // Finally, set derivative term
+        pid_controller.set_derivative_term(2.0);
+        test_servo_input.process_value = 15.0;
+        output = pid_controller.read(&test_servo_input);
+        assert_control_value_result_eq!(output, -5.0);
+    }
+
+    #[test]
+    fn pid_controller_errors_on_zero_delta_t_measurements() {
+        let zero_sec = Duration::from_secs(0);
+        let test_servo_input = ServoInput {
+            process_value: 1.0,
+            delta_t: Some(zero_sec),
+        };
+        let mut pid_controller = PidController::new(5.0);
+        let output = pid_controller.read(&test_servo_input);
+        match output {
+            Ok(_) => unreachable!(),
+            Err(e) => assert_eq!(e.to_string(), "Delta t cannot be zero for discrete PID approximation.")
+        }
     }
 }
