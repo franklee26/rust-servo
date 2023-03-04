@@ -14,7 +14,67 @@ pub struct PidController {
     derivative: f64,
 }
 
+pub struct PidControllerBuilder {
+    set_point: Option<f64>,
+    proportional: Option<f64>,
+    integral: Option<f64>,
+    derivative: Option<f64>,
+}
+
+impl PidControllerBuilder {
+    fn new() -> Self {
+        Self {
+            set_point: None,
+            proportional: None,
+            integral: None,
+            derivative: None,
+        }
+    }
+
+    pub fn set_point(mut self, set_point: f64) -> Self {
+        self.set_point = Some(set_point);
+        self
+    }
+
+    pub fn proportional(mut self, proportional: f64) -> Self {
+        self.proportional = Some(proportional);
+        self
+    }
+
+    pub fn integral(mut self, integral: f64) -> Self {
+        self.integral = Some(integral);
+        self
+    }
+
+    pub fn derivative(mut self, derivative: f64) -> Self {
+        self.derivative = Some(derivative);
+        self
+    }
+
+    pub fn build(self) -> PidController {
+        let Self {
+            set_point,
+            proportional,
+            integral,
+            derivative,
+        } = self;
+        PidController {
+            set_point: set_point.unwrap_or_default(),
+            last_control_value: None,
+            last_error_term: None,
+            last_last_error_term: None,
+            proportional: proportional.unwrap_or_default(),
+            integral: integral.unwrap_or_default(),
+            derivative: derivative.unwrap_or_default(),
+        }
+    }
+}
+
 impl PidController {
+    pub fn builder() -> PidControllerBuilder {
+        PidControllerBuilder::new()
+    }
+
     pub fn new(set_point: f64) -> Self {
         Self {
             set_point,
@@ -110,9 +170,9 @@ mod tests {
         ($result: expr, $expected: expr) => {
             match $result {
                 Ok(value) => assert_eq!(value.value, $expected),
-                Err(_) => assert!(false)
+                Err(_) => assert!(false),
             }
-        }
+        };
     }
 
     // Borrowed from braincore/pid-rs example: https://github.com/braincore/pid-rs#example
@@ -123,7 +183,7 @@ mod tests {
             process_value: 10.0,
             delta_t: Some(one_sec),
         };
-        let mut pid_controller = PidController::new(15.0);
+        let mut pid_controller = PidController::builder().set_point(15.0).build();
 
         pid_controller.set_proportional_term(10.0);
         let mut output = pid_controller.read(&test_servo_input);
@@ -149,11 +209,14 @@ mod tests {
             process_value: 1.0,
             delta_t: Some(zero_sec),
         };
-        let mut pid_controller = PidController::new(5.0);
+        let mut pid_controller = PidController::builder().set_point(15.0).build();
         let output = pid_controller.read(&test_servo_input);
         match output {
             Ok(_) => unreachable!(),
-            Err(e) => assert_eq!(e.to_string(), "Delta t cannot be zero for discrete PID approximation.")
+            Err(e) => assert_eq!(
+                e.to_string(),
+                "Delta t cannot be zero for discrete PID approximation."
+            ),
         }
     }
 }
