@@ -22,13 +22,13 @@ pub mod servo;
 
 // Example invocation of a PID controller
 fn main() -> Result<(), std::io::Error> {
-    // Setpoint set to 200.0
-    let mut controller = PidController::new(200.0);
-
-    // Set arbitrary PID coefficients
-    controller.set_derivative_term(0.19);
-    controller.set_integral_term(0.1);
-    controller.set_proportional_term(0.1);
+    // Setpoint set to 200.0 with arbitrary coefficients
+    let controller = PidController::builder()
+        .set_point(200.0)
+        .derivative(0.19)
+        .integral(0.1)
+        .proportional(0.1)
+        .build();
 
     let mut engine = Engine::new(controller);
     let mut measurement = Measurement::new();
